@@ -11,7 +11,9 @@ jobs:
   displayName: Generate Matrix
   pool: pool-windows-2019
   steps:
-  - checkout: none
+
+  # TODO: (Bernard) Uncomment the no checkout step after automatically install repo into agnets 
+  # - checkout: none
 
   - template: util/get-github-pat-steps.yml
 
@@ -82,8 +84,44 @@ jobs:
         git config user.name "azure-powershell-bot";
         git remote set-url origin 'https://azure-powershell-bot:$(GithubToken)@github.com/Azure/azure-powershell.git';
 
+        $random = Get-Random -Minimum 10 -Maximum 181
+        Write-Host "Sleeping for $random seconds..."
+        Start-Sleep -Seconds $random
+
         git add .
         git commit -m "Build $target"
         git push origin "${{ variables.GenerationBranch }}"
 
       workingDirectory: $(Build.SourcesDirectory)
+
+- job: filter
+  displayName: 'Filter Changed Modules'
+  dependsOn: build 
+  steps:
+  - checkout: none
+
+  - script: |
+      git init
+      git remote add origin https://github.com/Azure/azure-powershell.git
+      git fetch origin main --depth=1
+      git checkout FETCH_HEAD -- .azure-pipelines/
+      
+    displayName: 'Checkout Pipeline Templates'
+
+  - template: util/get-github-pat-steps.yml
+
+  - script: |
+      changedModules=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+      https://api.github.com/repos/${{ github.repository }}/compare/main...feature/foo \
+      | jq -r '.files[].filename' \
+      | grep -E '^(src|generated)/[^/]+/[^/]+\.autorest/' \
+      | sed -E 's#^(src|generated)/##' \
+      | awk -F/ '{print $1 "/" $2}' \
+      | sort -u)
+
+      IFS=$'\n' read -r -d '' -a changedModulePath <<< "$changedModules"
+
+      for path in "${changedModulePath[@]}"; do
+        echo "$path"
+      done
+      
