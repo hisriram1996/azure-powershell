@@ -111,17 +111,17 @@ jobs:
   - template: util/get-github-pat-steps.yml
 
   - script: |
-      changedModules=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-      https://api.github.com/repos/${{ github.repository }}/compare/main...feature/foo \
-      | jq -r '.files[].filename' \
-      | grep -E '^(src|generated)/[^/]+/[^/]+\.autorest/' \
-      | sed -E 's#^(src|generated)/##' \
-      | awk -F/ '{print $1 "/" $2}' \
-      | sort -u)
+      $token = "$(GitHubToken)"
+      changedModules=$(curl -s -H "Authorization: Bearer $token" \
+        https://api.github.com/repos/Azure/azure-powershell/compare/main...${{ variables.GenerationBranch }} \
+        | jq -r '.files[].filename' \
+        | grep -E '^(src|generated)/[^/]+/[^/]+\.autorest/' \
+        | sed -E 's#^(src|generated)/##' \
+        | awk -F/ '{print $1 "/" $2}' \
+        | sort -u)
 
       IFS=$'\n' read -r -d '' -a changedModulePath <<< "$changedModules"
 
       for path in "${changedModulePath[@]}"; do
         echo "$path"
       done
-      
